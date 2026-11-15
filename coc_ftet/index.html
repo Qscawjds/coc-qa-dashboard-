@@ -1,0 +1,1674 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CoC QA Dashboard — FTET Analytics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+    <script src="assets/html2pdf.bundle.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'IBM Plex Sans Thai', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#EEF2FF', 100: '#E0E7FF', 200: '#C7D2FE',
+                            400: '#818CF8', 500: '#6366F1', 600: '#4F46E5',
+                            700: '#4338CA', 800: '#3730A3', 900: '#312E81'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: 'Inter', 'IBM Plex Sans Thai', system-ui, sans-serif; }
+        .glass { background: rgba(255,255,255,0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+        .dark .glass { background: rgba(15,23,42,0.85); }
+        .card { transition: transform 0.2s cubic-bezier(.16,1,.3,1), box-shadow 0.2s ease; }
+        .card:hover { transform: translateY(-2px); }
+        .fade-in { animation: fadeIn 0.25s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        .chart-wrap { position: relative; width: 100%; aspect-ratio: 4/3; }
+        .chart-wrap canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; }
+        
+        /* Select & Options styling - Guaranteed Dark Mode contrast */
+        select {
+            color-scheme: light;
+            cursor: pointer;
+        }
+        .dark select {
+            color-scheme: dark;
+        }
+        select option {
+            background-color: #ffffff;
+            color: #111827;
+            padding: 8px;
+        }
+        .dark select option {
+            background-color: #1e293b;
+            color: #f8fafc;
+        }
+
+        /* Sliders */
+        input[type=range] { -webkit-appearance: none; height: 6px; border-radius: 999px; background: #E0E7FF; outline: none; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #6366F1; cursor: pointer; box-shadow: 0 2px 6px rgba(99,102,241,0.35); }
+        .dark input[type=range] { background: #334155; }
+        .dark input[type=range]::-webkit-slider-thumb { background: #818CF8; box-shadow: 0 2px 8px rgba(129,140,248,0.4); }
+
+        @media print {
+            header, .filter-toolbar, .no-print, footer { display: none !important; }
+            body { background: #fff !important; color: #000 !important; }
+            .card { box-shadow: none !important; border: 1px solid #ddd !important; }
+            .tab-pane { display: block !important; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-slate-950 text-gray-800 dark:text-slate-100 transition-colors duration-200 min-h-screen flex flex-col">
+
+<!-- ============ 1. TOP HEADER BAR ============ -->
+<header class="bg-white dark:bg-slate-900 border-b border-gray-200/80 dark:border-slate-800 sticky top-0 z-40 transition-colors shadow-2xs">
+    <div class="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <!-- Left: PSU Logo & Titles -->
+        <div class="flex items-center gap-3.5">
+            <!-- Official PSU Logo Container (adaptive to light & dark mode) -->
+            <div class="h-11 px-3 py-1.5 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200/80 dark:border-slate-700/80 flex items-center justify-center shadow-xs flex-shrink-0 transition-colors">
+                <img src="assets/psu_logo_light.png" alt="PSU Logo" class="h-7 w-auto block dark:hidden object-contain">
+                <img src="assets/psu_logo_dark.png" alt="PSU Logo" class="h-7 w-auto hidden dark:block object-contain">
+            </div>
+            <div>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <h1 class="text-base sm:text-lg font-bold text-gray-900 dark:text-white tracking-tight">CoC QA Dashboard</h1>
+                    <span class="inline-flex items-center text-[0.7rem] font-semibold px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/80 text-brand-600 dark:text-brand-300 border border-brand-200 dark:border-brand-800/80">
+                        FTET Analytics
+                    </span>
+                </div>
+                <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                    ระบบวิเคราะห์ภาระงานอาจารย์และข้อมูลประกันคุณภาพการศึกษา วิทยาลัยการคอมพิวเตอร์
+                </p>
+            </div>
+        </div>
+
+        <!-- Right: Control Actions -->
+        <div class="flex items-center gap-2 self-end sm:self-auto">
+            <!-- Theme Toggle -->
+            <button onclick="toggleTheme()" class="w-9 h-9 rounded-xl border border-gray-200 dark:border-slate-700 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors text-gray-600 dark:text-slate-300" title="สลับโหมดกลางวัน/กลางคืน">
+                <svg id="sunIcon" class="w-4 h-4 hidden text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+                <svg id="moonIcon" class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+            </button>
+
+            <!-- Refresh Button -->
+            <button onclick="handleRefresh()" class="w-9 h-9 rounded-xl border border-gray-200 dark:border-slate-700 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors text-gray-600 dark:text-slate-300 active:scale-95" title="รีเฟรชข้อมูล">
+                <svg id="refreshIcon" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+            </button>
+
+            <!-- Settings Button -->
+            <button onclick="openSettingsModal()" class="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors">
+                <svg class="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                <span>การตั้งค่า</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ============ 2. TAB NAVIGATION BAR (4 FOCUSED TABS) ============ -->
+    <div class="border-t border-gray-100 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm">
+        <div class="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row md:items-center justify-between gap-2 py-1.5 overflow-x-auto">
+            <!-- Tabs -->
+            <nav class="flex items-center gap-1.5 min-w-max" id="tabNav">
+                <button onclick="switchTab('tab-overview')" id="nav-tab-overview" class="tab-btn px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-950/60 text-brand-600 dark:text-brand-300 border border-brand-200 dark:border-brand-800 shadow-2xs">
+                    <span>📈</span>
+                    <span>ภาพรวมและแนวโน้ม</span>
+                </button>
+                <button onclick="switchTab('tab-teachers')" id="nav-tab-teachers" class="tab-btn px-3.5 py-1.5 text-xs font-medium rounded-xl text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800 transition-all flex items-center gap-1.5">
+                    <span>👥</span>
+                    <span>วิเคราะห์ภาระงานอาจารย์</span>
+                </button>
+                <button onclick="switchTab('tab-hours')" id="nav-tab-hours" class="tab-btn px-3.5 py-1.5 text-xs font-medium rounded-xl text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800 transition-all flex items-center gap-1.5">
+                    <span>📊</span>
+                    <span>สัดส่วนประเภทชั่วโมงสอน</span>
+                </button>
+                <button onclick="switchTab('tab-calc')" id="nav-tab-calc" class="tab-btn px-3.5 py-1.5 text-xs font-medium rounded-xl text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800 transition-all flex items-center gap-1.5">
+                    <span>🧮</span>
+                    <span>เครื่องมือจำลองสูตร FTET</span>
+                </button>
+            </nav>
+
+            <!-- Export Button -->
+            <button onclick="openExportModal()" class="inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white shadow-sm active:scale-95 transition-all self-end md:self-auto flex-shrink-0">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                <span>ส่งออกรายงาน</span>
+            </button>
+        </div>
+    </div>
+</header>
+
+<!-- ============ 3. FILTER TOOLBAR ============ -->
+<div class="filter-toolbar bg-white dark:bg-slate-900 border-b border-gray-200/80 dark:border-slate-800 py-3 shadow-2xs">
+    <div class="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 space-y-2.5">
+        <div class="flex flex-wrap items-center gap-2.5 text-xs">
+            <!-- 1) Academic Year Range -->
+            <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-200">
+                <span class="text-brand-500">📅</span>
+                <span class="font-medium text-gray-600 dark:text-slate-300">ปีการศึกษา:</span>
+                <select id="selYearFrom" onchange="applyFilters()" class="bg-transparent font-semibold text-gray-900 dark:text-white focus:outline-none cursor-pointer">
+                    <option value="2562">2562</option>
+                    <option value="2563">2563</option>
+                    <option value="2564">2564</option>
+                    <option value="2565">2565</option>
+                    <option value="2566">2566</option>
+                    <option value="2567">2567</option>
+                </select>
+                <span class="text-gray-400 dark:text-slate-400 px-0.5">ถึง</span>
+                <select id="selYearTo" onchange="applyFilters()" class="bg-transparent font-semibold text-gray-900 dark:text-white focus:outline-none cursor-pointer">
+                    <option value="2562">2562</option>
+                    <option value="2563">2563</option>
+                    <option value="2564">2564</option>
+                    <option value="2565">2565</option>
+                    <option value="2566">2566</option>
+                    <option value="2567" selected>2567</option>
+                </select>
+            </div>
+
+            <!-- 2) Segmented View Mode -->
+            <div class="inline-flex items-center p-1 rounded-xl bg-gray-100 dark:bg-slate-800 text-xs border border-transparent dark:border-slate-700">
+                <button onclick="setViewMode('yearly')" id="btnViewYearly" class="px-3 py-1 rounded-lg font-medium text-gray-600 dark:text-slate-300 transition-all">
+                    ภาพรวมรายปี
+                </button>
+                <button onclick="setViewMode('term')" id="btnViewTerm" class="px-3 py-1 rounded-lg font-semibold bg-white dark:bg-slate-900 text-brand-600 dark:text-brand-300 shadow-sm transition-all">
+                    แยกรายภาคเรียน (เทอม)
+                </button>
+            </div>
+
+            <!-- 3) Semester Selector -->
+            <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-200">
+                <span class="font-medium text-gray-600 dark:text-slate-300">ภาคเรียน:</span>
+                <select id="selTerm" onchange="applyFilters()" class="bg-transparent font-semibold text-gray-900 dark:text-white focus:outline-none cursor-pointer">
+                    <option value="all">เฉลี่ยทั้งปี (All Semesters)</option>
+                    <option value="1">ภาคการศึกษาที่ 1</option>
+                    <option value="2">ภาคการศึกษาที่ 2</option>
+                </select>
+            </div>
+
+            <!-- 4) Program Selector -->
+            <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-200">
+                <svg class="w-3.5 h-3.5 text-brand-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                <span class="font-medium text-gray-600 dark:text-slate-300">หลักสูตร:</span>
+                <select id="selProgram" onchange="applyFilters()" class="bg-transparent font-semibold text-brand-600 dark:text-brand-300 focus:outline-none cursor-pointer">
+                    <option value="all">ทุกหลักสูตร (All Programs)</option>
+                    <option value="Comp">Comp — วิทยาการคอมพิวเตอร์ (Computer Science)</option>
+                    <option value="DE">DE — วิศวกรรมดิจิทัล (Digital Engineering)</option>
+                    <option value="DBiz">DBiz — ธุรกิจดิจิทัล (Digital Business)</option>
+                    <option value="AISE">AISE — วิศวกรรมปัญญาประดิษฐ์ (AI System Engineering)</option>
+                    <option value="MsComp">MsComp — วิทยาการคอมพิวเตอร์ (ปริญญาโท)</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Filter Sub-bar Status Note -->
+        <div class="flex items-center gap-1.5 text-[0.72rem] text-gray-500 dark:text-slate-400">
+            <svg class="w-3 h-3 text-brand-500 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+            <span id="filterSummaryText">แสดงข้อมูล 2562 - 2567 • เกณฑ์เป้าหมาย 0.35 - 0.55 FTET (เฉลี่ย CoC ~0.45 FTET)</span>
+        </div>
+    </div>
+</div>
+
+<!-- ============ MAIN CONTENT AREA ============ -->
+<main class="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full space-y-6">
+
+    <!-- TAB 1: 📈 ภาพรวมและแนวโน้ม -->
+    <div id="tab-overview" class="tab-pane space-y-6 fade-in">
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="card rounded-2xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 p-5 shadow-sm">
+                <p class="text-[0.7rem] font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-400 mb-1" id="kpiAvgTitle">FTET เฉลี่ยทั้งคณะ</p>
+                <p class="text-3xl font-extrabold text-gray-900 dark:text-white" id="kpiAvg">0.461</p>
+                <span class="inline-block mt-2 text-[0.7rem] font-semibold px-2 py-0.5 rounded-full bg-brand-50 dark:bg-brand-950/80 text-brand-600 dark:text-brand-300 border border-brand-200/50 dark:border-brand-800/50" id="kpiAvgBadge">ปี 2567</span>
+            </div>
+            <div class="card rounded-2xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 p-5 shadow-sm">
+                <p class="text-[0.7rem] font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-400 mb-1" id="kpiTeachersTitle">อาจารย์ผู้สอน</p>
+                <p class="text-3xl font-extrabold text-gray-900 dark:text-white" id="kpiTeachers">36</p>
+                <span class="inline-block mt-2 text-[0.7rem] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-800/50" id="kpiTeachersBadge">ภาคการศึกษา 2567/2</span>
+            </div>
+            <div class="card rounded-2xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 p-5 shadow-sm">
+                <p class="text-[0.7rem] font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-400 mb-1">หลักสูตรสูงสุดในรอบปี</p>
+                <p class="text-3xl font-extrabold text-gray-900 dark:text-white" id="kpiTopProg">MsComp</p>
+                <span class="inline-block mt-2 text-[0.7rem] font-semibold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/80 text-amber-600 dark:text-amber-300 border border-amber-200/50 dark:border-amber-800/50" id="kpiTopProgBadge">0.500 FTET</span>
+            </div>
+            <div class="card rounded-2xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 p-5 shadow-sm">
+                <p class="text-[0.7rem] font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-400 mb-1">เกณฑ์มาตรฐาน 1.0 FTET</p>
+                <p class="text-3xl font-extrabold text-gray-900 dark:text-white" id="kpiStdHours">525</p>
+                <span class="inline-block mt-2 text-[0.7rem] font-semibold px-2 py-0.5 rounded-full bg-violet-50 dark:bg-violet-950/80 text-violet-600 dark:text-violet-300 border border-violet-200/50 dark:border-violet-800/50" id="kpiStdHoursBadge">ชม./ภาค (35 ชม./สัปดาห์)</span>
+            </div>
+        </div>
+
+        <!-- 2 Main Charts Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <!-- 1) Column Chart -->
+            <div class="card rounded-2xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 p-5 shadow-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="text-sm font-bold text-gray-900 dark:text-white" id="colChartTitle">เปรียบเทียบ FTET แต่ละหลักสูตรรายปี</h3>
+                        <p class="text-[0.72rem] text-gray-400 dark:text-slate-400 mt-0.5" id="colChartSubtitle">ค่า FTET เฉลี่ยต่ออาจารย์ แยกตามหลักสูตร</p>
+                    </div>
+                    <span class="text-[0.65rem] font-medium text-gray-400 dark:text-slate-400 bg-gray-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">Column</span>
+                </div>
+                <div class="chart-wrap"><canvas id="chartColumn"></canvas></div>
+            </div>
+
+            <!-- 2) Line Chart -->
+            <div class="card rounded-2xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 p-5 shadow-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="text-sm font-bold text-gray-900 dark:text-white" id="lineChartTitle">แนวโน้ม FTET รายภาคการศึกษา</h3>
+                        <p class="text-[0.72rem] text-gray-400 dark:text-slate-400 mt-0.5" id="lineChartSubtitle">ภาคการศึกษา 1 และ 2 ตามช่วงปีที่เลือก</p>
+                    </div>
+                    <span class="text-[0.65rem] font-medium text-gray-400 dark:text-slate-400 bg-gray-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">Line</span>
+                </div>
+                <div class="chart-wrap"><canvas id="chartLine"></canvas></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 2: 👥 วิเคราะห์ภาระงานอาจารย์ -->
+    <div id="tab-teachers" class="tab-pane hidden space-y-6 fade-in">
+        <!-- Charts: Doughnut & Horizontal Bar -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <!-- Doughnut Chart -->
+            <div class="card rounded-2xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 p-5 shadow-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="text-sm font-bold text-gray-900 dark:text-white">สัดส่วนอาจารย์แต่ละหลักสูตร</h3>
+                        <p class="text-[0.72rem] text-gray-400 dark:text-slate-400 mt-0.5">จำนวนอาจารย์ผู้สอน (ภาค 2567/2)</p>
+                    </div>
+                    <span class="text-[0.65rem] font-medium text-gray-400 dark:text-slate-400 bg-gray-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">Doughnut</span>
+                </div>
+                <div class="chart-wrap"><canvas id="chartDoughnut"></canvas></div>
+            </div>
+
+            <!-- Horizontal Bar Chart -->
+            <div class="lg:col-span-2 card rounded-2xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 p-5 shadow-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="text-sm font-bold text-gray-900 dark:text-white">FTET รายอาจารย์ (ภาระงานสูงสุด)</h3>
+                        <p class="text-[0.72rem] text-gray-400 dark:text-slate-400 mt-0.5">ภาคการศึกษา 2567/2 เรียงตาม FTET</p>
+                    </div>
+                    <span class="text-[0.65rem] font-medium text-gray-400 dark:text-slate-400 bg-gray-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">Bar</span>
+                </div>
+                <div class="chart-wrap" style="aspect-ratio:16/9"><canvas id="chartHBar"></canvas></div>
+            </div>
+        </div>
+
+        <!-- Teacher Full Table -->
+        <div class="card rounded-2xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-gray-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                    <h3 class="text-sm font-bold text-gray-900 dark:text-white">รายชื่ออาจารย์และภาระงานสอน — ภาคการศึกษา 2567/2</h3>
+                    <p class="text-[0.72rem] text-gray-400 dark:text-slate-400 mt-0.5" id="teacherTableSubtitle">แสดง FTET และจำนวนวิชาของอาจารย์ทั้งหมด 36 ท่าน</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="text" id="teacherSearch" oninput="renderTeacherTable()" placeholder="ค้นหาชื่ออาจารย์..." class="text-xs px-3 py-1.5 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-brand-500 w-48 shadow-2xs">
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left">
+                    <thead class="text-[0.7rem] uppercase tracking-wider text-gray-500 dark:text-slate-400 bg-gray-50 dark:bg-slate-800/80">
+                        <tr>
+                            <th class="px-5 py-3 font-semibold">#</th>
+                            <th class="px-5 py-3 font-semibold">ชื่ออาจารย์</th>
+                            <th class="px-5 py-3 font-semibold">หลักสูตร</th>
+                            <th class="px-5 py-3 font-semibold text-right">วิชา</th>
+                            <th class="px-5 py-3 font-semibold text-right">FTET</th>
+                            <th class="px-5 py-3 font-semibold" style="min-width:140px">ระดับภาระงาน</th>
+                        </tr>
+                    </thead>
+                    <tbody id="teacherTableBody" class="divide-y divide-gray-100 dark:divide-slate-800"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 3: 📊 สัดส่วนประเภทชั่วโมงสอน -->
+    <div id="tab-hours" class="tab-pane hidden space-y-6 fade-in">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="card rounded-2xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 p-5 shadow-sm">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center text-brand-600 dark:text-brand-300 font-bold">L</div>
+                    <div>
+                        <p class="text-xs text-gray-400 dark:text-slate-400">ชั่วโมงบรรยาย (Lecture)</p>
+                        <p class="text-2xl font-bold text-gray-900 dark:text-white">175.0 ชม./สัปดาห์</p>
+                        <span class="text-[0.7rem] font-medium text-brand-600 dark:text-brand-400">ค่าน้ำหนัก × 2.0</span>
+                    </div>
+                </div>
+            </div>
+            <div class="card rounded-2xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 p-5 shadow-sm">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950 flex items-center justify-center text-emerald-600 dark:text-emerald-300 font-bold">P</div>
+                    <div>
+                        <p class="text-xs text-gray-400 dark:text-slate-400">ชั่วโมงปฏิบัติการ (Lab)</p>
+                        <p class="text-2xl font-bold text-gray-900 dark:text-white">87.0 ชม./สัปดาห์</p>
+                        <span class="text-[0.7rem] font-medium text-emerald-600 dark:text-emerald-400">ค่าน้ำหนัก × 1.5</span>
+                    </div>
+                </div>
+            </div>
+            <div class="card rounded-2xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 p-5 shadow-sm">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950 flex items-center justify-center text-amber-600 dark:text-amber-300 font-bold">J</div>
+                    <div>
+                        <p class="text-xs text-gray-400 dark:text-slate-400">ชั่วโมงโครงงาน (Project)</p>
+                        <p class="text-2xl font-bold text-gray-900 dark:text-white">76.0 ชม./สัปดาห์</p>
+                        <span class="text-[0.7rem] font-medium text-amber-600 dark:text-amber-400">ค่าน้ำหนัก × 1.0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="card rounded-2xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 p-5 shadow-sm">
+                <h3 class="text-sm font-bold text-gray-900 dark:text-white mb-1">เปรียบเทียบชั่วโมงสอนแต่ละภาคการศึกษา</h3>
+                <p class="text-[0.72rem] text-gray-400 dark:text-slate-400 mb-4">สัดส่วนชั่วโมงบรรยาย ปฏิบัติการ และโครงงานรวมทั้งคณะ</p>
+                <div class="chart-wrap"><canvas id="chartHoursBreakdown"></canvas></div>
+            </div>
+            <div class="card rounded-2xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 p-5 shadow-sm">
+                <h3 class="text-sm font-bold text-gray-900 dark:text-white mb-1">สัดส่วนประเภทภาระงานสอน (ภาค 2567/2)</h3>
+                <p class="text-[0.72rem] text-gray-400 dark:text-slate-400 mb-4">คิดเป็นเปอร์เซ็นต์ตามชั่วโมงรวมของรายวิชา</p>
+                <div class="chart-wrap"><canvas id="chartHoursPie"></canvas></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 4: 🧮 เครื่องมือจำลองสูตร FTET -->
+    <div id="tab-calc" class="tab-pane hidden space-y-6 fade-in">
+        <div class="card rounded-2xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 p-6 shadow-sm">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 pb-4 border-b border-gray-100 dark:border-slate-800">
+                <div>
+                    <h3 class="text-base font-bold text-gray-900 dark:text-white">เครื่องมือจำลองสูตร FTET (FTET Formula Simulator)</h3>
+                    <p class="text-xs text-gray-400 dark:text-slate-400 mt-0.5">จำลองและปรับค่าตัวแปรของรายวิชาได้อย่างอิสระ พิมพ์ตัวเลขหรือลาก Slider เพื่อดูผลทันที</p>
+                </div>
+                <div class="mt-3 sm:mt-0 text-xs text-gray-600 dark:text-slate-300 bg-gray-50 dark:bg-slate-800 px-3.5 py-2 rounded-xl font-mono border border-gray-200/60 dark:border-slate-700">
+                    FTET = ((บรรยาย×2) + (ปฏิบัติ×1.5) + โครงงาน) × กลุ่ม × สัปดาห์ ÷ <span id="formulaDivisor">525</span>
+                </div>
+            </div>
+
+            <!-- Quick Template Buttons -->
+            <div class="mb-6 flex flex-wrap items-center gap-2">
+                <span class="text-xs font-medium text-gray-500 dark:text-slate-400">เทมเพลตสำเร็จรูป:</span>
+                <button onclick="setCalcPreset(3, 0, 0, 1, 15)" class="text-xs px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-slate-800 hover:bg-brand-50 hover:text-brand-600 dark:hover:bg-indigo-950/60 dark:hover:text-brand-300 transition-colors">
+                    บรรยาย 3 ชม. (3-0-6)
+                </button>
+                <button onclick="setCalcPreset(2, 2, 0, 1, 15)" class="text-xs px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-slate-800 hover:bg-brand-50 hover:text-brand-600 dark:hover:bg-indigo-950/60 dark:hover:text-brand-300 transition-colors">
+                    บรรยาย 2 + ปฏิบัติ 2 (2-2-5)
+                </button>
+                <button onclick="setCalcPreset(1, 4, 0, 1, 15)" class="text-xs px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-slate-800 hover:bg-brand-50 hover:text-brand-600 dark:hover:bg-indigo-950/60 dark:hover:text-brand-300 transition-colors">
+                    บรรยาย 1 + ปฏิบัติ 4 (1-4-4)
+                </button>
+                <button onclick="setCalcPreset(0, 0, 6, 1, 15)" class="text-xs px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-slate-800 hover:bg-brand-50 hover:text-brand-600 dark:hover:bg-indigo-950/60 dark:hover:text-brand-300 transition-colors">
+                    วิชาโครงงาน Project (6 ชม.)
+                </button>
+                <button onclick="setCalcPreset(3, 0, 0, 4, 15)" class="text-xs px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-slate-800 hover:bg-brand-50 hover:text-brand-600 dark:hover:bg-indigo-950/60 dark:hover:text-brand-300 transition-colors">
+                    วิชาพื้นฐานหลายกลุ่ม (4 กลุ่ม)
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Inputs Column -->
+                <div class="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+                    <!-- Lecture -->
+                    <div class="bg-gray-50/70 dark:bg-slate-800/50 p-3.5 rounded-xl border border-gray-100 dark:border-slate-800">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <label class="text-xs font-semibold text-gray-700 dark:text-slate-200">ชม.บรรยาย/สัปดาห์</label>
+                            <div class="flex items-center gap-1">
+                                <input type="number" id="numLec" min="0" step="0.5" value="3.0" oninput="syncFromNumber('Lec')" class="w-20 text-right text-xs font-bold px-2 py-1 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-300 focus:outline-none focus:ring-1 focus:ring-brand-500 shadow-2xs">
+                                <span class="text-[0.68rem] text-gray-400 dark:text-slate-400 font-medium">ชม.</span>
+                            </div>
+                        </div>
+                        <input type="range" id="sliderLec" min="0" max="15" step="0.5" value="3" oninput="syncFromSlider('Lec')" class="w-full">
+                        <div class="flex justify-between text-[0.65rem] text-gray-400 dark:text-slate-400 mt-1">
+                            <span>0</span>
+                            <span class="text-brand-500 font-medium">น้ำหนัก ×2.0</span>
+                            <span id="maxLabelLec">15</span>
+                        </div>
+                    </div>
+
+                    <!-- Lab -->
+                    <div class="bg-gray-50/70 dark:bg-slate-800/50 p-3.5 rounded-xl border border-gray-100 dark:border-slate-800">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <label class="text-xs font-semibold text-gray-700 dark:text-slate-200">ชม.ปฏิบัติการ/สัปดาห์</label>
+                            <div class="flex items-center gap-1">
+                                <input type="number" id="numLab" min="0" step="0.5" value="0.0" oninput="syncFromNumber('Lab')" class="w-20 text-right text-xs font-bold px-2 py-1 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-300 focus:outline-none focus:ring-1 focus:ring-brand-500 shadow-2xs">
+                                <span class="text-[0.68rem] text-gray-400 dark:text-slate-400 font-medium">ชม.</span>
+                            </div>
+                        </div>
+                        <input type="range" id="sliderLab" min="0" max="15" step="0.5" value="0" oninput="syncFromSlider('Lab')" class="w-full">
+                        <div class="flex justify-between text-[0.65rem] text-gray-400 dark:text-slate-400 mt-1">
+                            <span>0</span>
+                            <span class="text-emerald-500 font-medium">น้ำหนัก ×1.5</span>
+                            <span id="maxLabelLab">15</span>
+                        </div>
+                    </div>
+
+                    <!-- Project -->
+                    <div class="bg-gray-50/70 dark:bg-slate-800/50 p-3.5 rounded-xl border border-gray-100 dark:border-slate-800">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <label class="text-xs font-semibold text-gray-700 dark:text-slate-200">โครงงาน (ชม./สัปดาห์)</label>
+                            <div class="flex items-center gap-1">
+                                <input type="number" id="numPrj" min="0" step="1" value="0.0" oninput="syncFromNumber('Prj')" class="w-20 text-right text-xs font-bold px-2 py-1 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-300 focus:outline-none focus:ring-1 focus:ring-brand-500 shadow-2xs">
+                                <span class="text-[0.68rem] text-gray-400 dark:text-slate-400 font-medium">ชม.</span>
+                            </div>
+                        </div>
+                        <input type="range" id="sliderPrj" min="0" max="30" step="1" value="0" oninput="syncFromSlider('Prj')" class="w-full">
+                        <div class="flex justify-between text-[0.65rem] text-gray-400 dark:text-slate-400 mt-1">
+                            <span>0</span>
+                            <span class="text-amber-500 font-medium">น้ำหนัก ×1.0</span>
+                            <span id="maxLabelPrj">30</span>
+                        </div>
+                    </div>
+
+                    <!-- Sections -->
+                    <div class="bg-gray-50/70 dark:bg-slate-800/50 p-3.5 rounded-xl border border-gray-100 dark:border-slate-800">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <label class="text-xs font-semibold text-gray-700 dark:text-slate-200">จำนวนกลุ่มเรียน (Sections)</label>
+                            <div class="flex items-center gap-1">
+                                <input type="number" id="numSec" min="1" step="1" value="1" oninput="syncFromNumber('Sec')" class="w-20 text-right text-xs font-bold px-2 py-1 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-300 focus:outline-none focus:ring-1 focus:ring-brand-500 shadow-2xs">
+                                <span class="text-[0.68rem] text-gray-400 dark:text-slate-400 font-medium">กลุ่ม</span>
+                            </div>
+                        </div>
+                        <input type="range" id="sliderSec" min="1" max="10" step="1" value="1" oninput="syncFromSlider('Sec')" class="w-full">
+                        <div class="flex justify-between text-[0.65rem] text-gray-400 dark:text-slate-400 mt-1">
+                            <span>1</span>
+                            <span class="text-gray-400 dark:text-slate-400 font-medium">กลุ่มเรียน</span>
+                            <span id="maxLabelSec">10</span>
+                        </div>
+                    </div>
+
+                    <!-- Weeks -->
+                    <div class="sm:col-span-2 bg-gray-50/70 dark:bg-slate-800/50 p-3.5 rounded-xl border border-gray-100 dark:border-slate-800">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <label class="text-xs font-semibold text-gray-700 dark:text-slate-200">จำนวนสัปดาห์/ภาคการศึกษา</label>
+                            <div class="flex items-center gap-1">
+                                <input type="number" id="numWk" min="1" step="1" value="15" oninput="syncFromNumber('Wk')" class="w-20 text-right text-xs font-bold px-2 py-1 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-300 focus:outline-none focus:ring-1 focus:ring-brand-500 shadow-2xs">
+                                <span class="text-[0.68rem] text-gray-400 dark:text-slate-400 font-medium">สัปดาห์</span>
+                            </div>
+                        </div>
+                        <input type="range" id="sliderWk" min="1" max="20" step="1" value="15" oninput="syncFromSlider('Wk')" class="w-full">
+                        <div class="flex justify-between text-[0.65rem] text-gray-400 dark:text-slate-400 mt-1">
+                            <span>1</span>
+                            <span class="text-violet-500 font-medium">เกณฑ์มาตรฐาน 15 สัปดาห์/ภาค</span>
+                            <span id="maxLabelWk">20</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Result Column -->
+                <div class="flex flex-col items-center justify-center text-center p-6 rounded-2xl bg-gray-50 dark:bg-slate-800/80 border border-gray-100 dark:border-slate-700/60">
+                    <p class="text-[0.7rem] font-semibold uppercase tracking-widest text-gray-400 dark:text-slate-400 mb-2">ผลคำนวณ FTET</p>
+                    <p class="text-5xl font-extrabold text-brand-600 dark:text-brand-300 tabular-nums transition-all" id="calcResult">0.1714</p>
+                    <p class="text-xs text-gray-500 dark:text-slate-400 mt-3 font-medium" id="calcHours">= 90.0 ชม./ภาค</p>
+                    
+                    <!-- Dynamic Workload Gauge -->
+                    <div class="mt-4 w-full">
+                        <div class="w-full h-3 rounded-full bg-gray-200 dark:bg-slate-700 overflow-hidden p-0.5">
+                            <div class="h-full rounded-full transition-all duration-300" id="calcBar" style="width:17%; background:#6366F1;"></div>
+                        </div>
+                        <div class="flex justify-between text-[0.62rem] text-gray-400 dark:text-slate-400 mt-1.5 font-medium">
+                            <span>0</span>
+                            <span id="calcStatus" class="font-bold text-xs">ภาระงานเบา</span>
+                            <span id="gaugeMaxLabel">สเกลสูงสุด 1.5 FTET</span>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic QA Advisory Banner -->
+                    <div id="calcWarning" class="mt-4 w-full hidden text-[0.72rem] p-3 rounded-xl text-left border transition-all"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</main>
+
+<!-- Footer -->
+<footer class="bg-white dark:bg-slate-900 border-t border-gray-200/80 dark:border-slate-800 text-center py-4 text-[0.7rem] text-gray-400 dark:text-slate-500 no-print transition-colors">
+    CoC QA Dashboard · วิทยาลัยการคอมพิวเตอร์ มหาวิทยาลัยสงขลานครินทร์ (PSU) · ฐานข้อมูล FTET_CoC.xlsx (2562–2567)
+</footer>
+
+<!-- Settings Modal -->
+<div id="settingsModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs hidden no-print">
+    <div class="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-bold text-gray-900 dark:text-white">การตั้งค่าระบบและเกณฑ์ FTET</h3>
+            <button onclick="closeSettingsModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 text-xl font-bold">&times;</button>
+        </div>
+        <div class="space-y-3.5 text-xs">
+            <div>
+                <label class="block font-semibold mb-1 text-gray-700 dark:text-slate-200">เกณฑ์ 1.0 FTET (ชม./ภาค):</label>
+                <input type="number" id="settingStandardHours" value="525" class="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white">
+                <span class="text-[0.65rem] text-gray-400 dark:text-slate-400">ค่าเริ่มต้น 525 ชม. (35 ชม./สัปดาห์ × 15 สัปดาห์)</span>
+            </div>
+            <div>
+                <label class="block font-semibold mb-1 text-gray-700 dark:text-slate-200">เกณฑ์เป้าหมายขั้นต่ำ (FTET):</label>
+                <input type="number" step="0.05" id="settingMinFTET" value="0.35" class="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white">
+            </div>
+            <div>
+                <label class="block font-semibold mb-1 text-gray-700 dark:text-slate-200">เกณฑ์เป้าหมายสูงสุด (FTET):</label>
+                <input type="number" step="0.05" id="settingMaxFTET" value="0.55" class="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white">
+            </div>
+        </div>
+        <div class="mt-6 flex justify-end gap-2">
+            <button onclick="closeSettingsModal()" class="px-3.5 py-1.5 text-xs rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700">ยกเลิก</button>
+            <button onclick="saveSettings()" class="px-4 py-1.5 text-xs rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold shadow-xs">บันทึกการตั้งค่า</button>
+        </div>
+    </div>
+</div>
+
+<!-- Export Modal -->
+<div id="exportModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs hidden no-print">
+    <div class="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-2xl p-6 max-w-lg w-full mx-4 shadow-2xl">
+        <div class="flex items-center justify-between mb-4 pb-3 border-b border-gray-100 dark:border-slate-800">
+            <div>
+                <h3 class="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                    <span>📥</span>
+                    <span>ส่งออกรายงาน (Export Report)</span>
+                </h3>
+                <p class="text-xs text-gray-400 dark:text-slate-400 mt-0.5">เลือกรูปแบบไฟล์เอกสารที่ต้องการสำหรับงานประกันคุณภาพและบริหารการศึกษา</p>
+            </div>
+            <button onclick="closeExportModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 text-xl font-bold">&times;</button>
+        </div>
+
+        <div class="space-y-3">
+            <!-- Option 1: PDF -->
+            <div class="p-3.5 rounded-xl border border-gray-200 dark:border-slate-700 hover:border-brand-500 dark:hover:border-brand-500 bg-gray-50/50 dark:bg-slate-800/40 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold text-lg flex-shrink-0">
+                        📄
+                    </div>
+                    <div>
+                        <h4 class="text-xs font-bold text-gray-900 dark:text-white">เอกสาร PDF (.pdf)</h4>
+                        <p class="text-[0.7rem] text-gray-500 dark:text-slate-400">สร้างไฟล์ PDF ขนาด A4 พร้อมโลโก้ PSU, สรุป KPI และตารางภาระงานดาวน์โหลดทันที</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 self-end sm:self-auto flex-shrink-0">
+                    <button onclick="exportPDF()" id="btnDownloadPDF" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-rose-600 hover:bg-rose-700 text-white shadow-2xs transition-all flex items-center gap-1.5 active:scale-95">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                        <span id="btnPdfText">ดาวน์โหลด PDF</span>
+                    </button>
+                    <button onclick="printReport()" class="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 transition-all" title="เปิดหน้าต่างสั่งพิมพ์ทางเครื่องพิมพ์">
+                        🖨️ สั่งพิมพ์
+                    </button>
+                </div>
+            </div>
+
+            <!-- Option 2: Word -->
+            <div class="p-3.5 rounded-xl border border-gray-200 dark:border-slate-700 hover:border-brand-500 dark:hover:border-brand-500 bg-gray-50/50 dark:bg-slate-800/40 transition-all flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-lg flex-shrink-0">
+                        📝
+                    </div>
+                    <div>
+                        <h4 class="text-xs font-bold text-gray-900 dark:text-white">Microsoft Word (.doc)</h4>
+                        <p class="text-[0.7rem] text-gray-500 dark:text-slate-400">เอกสาร Word จัดรูปแบบตารางและหัวข้อเรียบร้อย พร้อมเปิดแก้ไขหรือใส่ในเล่ม มคอ.</p>
+                    </div>
+                </div>
+                <button onclick="exportWord()" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition-all flex-shrink-0">
+                    ดาวน์โหลด Word
+                </button>
+            </div>
+
+            <!-- Option 3: Excel / CSV -->
+            <div class="p-3.5 rounded-xl border border-gray-200 dark:border-slate-700 hover:border-brand-500 dark:hover:border-brand-500 bg-gray-50/50 dark:bg-slate-800/40 transition-all flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-lg flex-shrink-0">
+                        📊
+                    </div>
+                    <div>
+                        <h4 class="text-xs font-bold text-gray-900 dark:text-white">Microsoft Excel / CSV (.csv)</h4>
+                        <p class="text-[0.7rem] text-gray-500 dark:text-slate-400">ตารางข้อมูลดิบอาจารย์ 36 ท่าน ครบทุกคอลัมน์ รองรับภาษาไทย UTF-8 BOM</p>
+                    </div>
+                </div>
+                <button onclick="exportCSV()" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-all flex-shrink-0">
+                    ดาวน์โหลด CSV
+                </button>
+            </div>
+        </div>
+
+        <div class="mt-5 pt-3 border-t border-gray-100 dark:border-slate-800 flex items-center justify-between">
+            <button onclick="copySummaryText()" class="inline-flex items-center gap-1.5 text-xs font-medium text-brand-600 dark:text-brand-300 hover:underline">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                <span>คัดลอกข้อความสรุป (Copy Text)</span>
+            </button>
+            <button onclick="closeExportModal()" class="px-4 py-1.5 text-xs rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 font-medium">
+                ปิด
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ========= REAL DATA (from FTET_CoC.xlsx) =========
+const PROG_COLORS = {
+    Comp: '#6366F1', DE: '#F59E0B', DBiz: '#10B981',
+    AISE: '#A855F7', MsComp: '#EF4444', CoC: '#64748B'
+};
+
+const PROG_NAMES = {
+    Comp: 'วิทยาการคอมพิวเตอร์',
+    DE: 'วิศวกรรมดิจิทัล',
+    DBiz: 'ธุรกิจดิจิทัล',
+    AISE: 'วิศวกรรมปัญญาประดิษฐ์',
+    MsComp: 'วิทยาการคอมพิวเตอร์ (ป.โท)',
+    CoC: 'เฉลี่ยทั้งคณะ CoC'
+};
+
+const RAW_AVG = {
+    Comp:   {2562:0.490,2563:0.415,2564:0.475,2565:0.415,2566:0.385,2567:0.465},
+    DE:     {2562:0.500,2563:0.460,2564:0.500,2565:0.400,2566:0.345,2567:0.420},
+    DBiz:   {2562:0.460,2563:0.370,2564:0.385,2565:0.420,2566:0.360,2567:0.460},
+    AISE:   {2567:0.460},
+    MsComp: {2562:0.430,2563:0.430,2564:0.460,2565:0.405,2566:0.370,2567:0.500},
+    CoC:    {2562:0.470,2563:0.419,2564:0.455,2565:0.410,2566:0.365,2567:0.461}
+};
+
+const RAW_TERM = {
+    Comp:   {'2562/1':0.530,'2562/2':0.450,'2563/1':0.480,'2563/2':0.350,'2564/1':0.510,'2564/2':0.440,'2565/1':0.470,'2565/2':0.360,'2566/1':0.450,'2566/2':0.320,'2567/1':0.420,'2567/2':0.510},
+    DE:     {'2562/1':0.490,'2562/2':0.510,'2563/1':0.480,'2563/2':0.440,'2564/1':0.490,'2564/2':0.510,'2565/1':0.420,'2565/2':0.380,'2566/1':0.370,'2566/2':0.320,'2567/1':0.440,'2567/2':0.400},
+    DBiz:   {'2562/1':0.550,'2562/2':0.370,'2563/1':0.430,'2563/2':0.310,'2564/1':0.470,'2564/2':0.300,'2565/1':0.520,'2565/2':0.320,'2566/1':0.440,'2566/2':0.280,'2567/1':0.540,'2567/2':0.380},
+    AISE:   {'2567/1':0.480,'2567/2':0.440},
+    MsComp: {'2562/1':0.450,'2562/2':0.410,'2563/1':0.480,'2563/2':0.380,'2564/1':0.490,'2564/2':0.430,'2565/1':0.430,'2565/2':0.380,'2566/1':0.400,'2566/2':0.340,'2567/1':0.500,'2567/2':0.500},
+    CoC:    {'2562/1':0.490,'2562/2':0.448,'2563/1':0.468,'2563/2':0.370,'2564/1':0.490,'2564/2':0.420,'2565/1':0.460,'2565/2':0.360,'2566/1':0.415,'2566/2':0.315,'2567/1':0.475,'2567/2':0.448}
+};
+
+const TEACHER_COUNTS = {Comp:12, DE:18, DBiz:6, AISE:0, MsComp:0};
+
+const TEACHERS = [
+    {name:'ดร.อมรรัตน์ ประสิทธิ์ศุภโรจน์',prog:'Comp',ftet:0.929,courses:5},
+    {name:'ผศ.ดร.ขวัญกมล ดิฐกัญจน์',prog:'Comp',ftet:0.743,courses:4},
+    {name:'ผศ.ดร.ณัฐพงศ์ ทองเทพ',prog:'Comp',ftet:0.657,courses:7},
+    {name:'ผศ.ดร.อดิศักดิ์ อินทนา',prog:'DE',ftet:0.657,courses:6},
+    {name:'ผศ.ดร.นรเทพ รัตนวิภานนท์',prog:'DE',ftet:0.657,courses:8},
+    {name:'ผศ.ดร.กฤตศิลป์ ศิลานนท์',prog:'DE',ftet:0.629,courses:6},
+    {name:'ดร.ยศวีย์ แก้วมณี',prog:'DE',ftet:0.600,courses:4},
+    {name:'ผศ.ดร.จิรวัฒน์ แท่นทอง',prog:'Comp',ftet:0.571,courses:4},
+    {name:'ดร.มณีเนตร พวงมณี',prog:'Comp',ftet:0.571,courses:4},
+    {name:'ผศ.ดร.กุลจรี ตันตยกุล',prog:'DE',ftet:0.529,courses:5},
+    {name:'ผศ.ดร.ฐิตินันท์ เกลี้ยงสุวรรณ',prog:'DE',ftet:0.514,courses:9},
+    {name:'อ.เลอลักษณ์ บุญล้ำ',prog:'DBiz',ftet:0.500,courses:4},
+    {name:'ผศ.ดร.จักรพันธ์ เชาว์ปรีชา',prog:'Comp',ftet:0.457,courses:3},
+    {name:'ดร.อภิชาต วสุธาพิทักษ์',prog:'Comp',ftet:0.457,courses:3},
+    {name:'ผศ.ดร.กาญจนา เหล่าเส็น',prog:'Comp',ftet:0.457,courses:3},
+    {name:'ดร.จักรพันธ์ สัวบุตร',prog:'DE',ftet:0.457,courses:5},
+    {name:'อ.อยุทธย์ อินทรประดิษฐ์',prog:'DBiz',ftet:0.457,courses:5},
+    {name:'ผศ.ดร.วโรดม วีระพันธ์',prog:'DE',ftet:0.443,courses:6},
+    {name:'อ.เอสเธอร์ เสงี่ยมกุล',prog:'DBiz',ftet:0.429,courses:3},
+    {name:'อ.มนชนก ทองเทพ',prog:'Comp',ftet:0.429,courses:3},
+    {name:'อ.กุลศิริ จิรายุส',prog:'DE',ftet:0.400,courses:3},
+    {name:'อ.วิศรุต จันทระ',prog:'DE',ftet:0.386,courses:4},
+    {name:'ดร.ณัฐยา แช่มธิติกุล',prog:'DBiz',ftet:0.371,courses:3},
+    {name:'ผศ.ดร.วีราภรณ์ ซิดดู',prog:'DBiz',ftet:0.371,courses:6},
+    {name:'ดร.จามิกร หิรัญรัตน์',prog:'DBiz',ftet:0.357,courses:3},
+    {name:'ดร.วรวิกา วัฒนสุนทร',prog:'Comp',ftet:0.329,courses:2},
+    {name:'รศ.ดร.อภิชาต หีดนาคราม',prog:'DE',ftet:0.314,courses:4},
+    {name:'อ.พัชรี เทพนิมิตร',prog:'DE',ftet:0.286,courses:8},
+    {name:'ผศ.ดร.นวนล ธีระอัมพรพันธุ์',prog:'Comp',ftet:0.286,courses:3},
+    {name:'ดร.วศิมน พาณิชพัฒนกุล',prog:'DE',ftet:0.257,courses:4},
+    {name:'ผศ.ดร.คมสันต์ กาญจนสิทธิ์',prog:'DE',ftet:0.257,courses:4},
+    {name:'ผศ.ดร.ปาณิศา ตรีพงศ์',prog:'Comp',ftet:0.257,courses:2},
+    {name:'ดร.ฉกาจกิจ แท่นชัยกุล',prog:'DE',ftet:0.229,courses:2},
+    {name:'ผศ.ดร.นพพณ เลิศชูวงศา',prog:'DE',ftet:0.229,courses:2},
+    {name:'อ.กุลวรรธน์ เชาวนวาที',prog:'DE',ftet:0.229,courses:3},
+    {name:'รศ.ดร.อซีส นันทอมรพงศ์',prog:'DE',ftet:0.200,courses:1}
+];
+
+const HOURS_DATA = {
+    terms: ['2562/1','2562/2','2563/1','2563/2','2567/1','2567/2'],
+    lecture: [184, 165, 179, 152, 215, 175],
+    lab: [77, 70, 99, 63, 100, 87],
+    project: [128, 135, 106, 131, 41, 76]
+};
+
+// ========= APPLICATION CONFIG & STATE =========
+let currentViewMode = 'term'; // 'yearly' or 'term'
+let currentStandardHours = 525;
+let currentMinFTET = 0.35;
+let currentMaxFTET = 0.55;
+
+let chartColumn, chartLine, chartDoughnut, chartHBar, chartHoursBreakdown, chartHoursPie;
+
+// ========= THEME MANAGEMENT =========
+function isDark() { return document.documentElement.classList.contains('dark'); }
+
+function toggleTheme() {
+    document.documentElement.classList.toggle('dark');
+    const dark = isDark();
+    localStorage.setItem('theme', dark ? 'dark' : 'light');
+    document.getElementById('sunIcon').classList.toggle('hidden', !dark);
+    document.getElementById('moonIcon').classList.toggle('hidden', dark);
+    updateAllChartsTheme();
+    renderTeacherTable();
+}
+
+function applyStoredTheme() {
+    const stored = localStorage.getItem('theme');
+    if (stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme:dark)').matches)) {
+        document.documentElement.classList.add('dark');
+        document.getElementById('sunIcon').classList.remove('hidden');
+        document.getElementById('moonIcon').classList.add('hidden');
+    }
+}
+
+// ========= TAB NAVIGATION =========
+function switchTab(tabId) {
+    document.querySelectorAll('.tab-pane').forEach(el => el.classList.add('hidden'));
+    const target = document.getElementById(tabId);
+    if (target) target.classList.remove('hidden');
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('bg-indigo-50', 'dark:bg-indigo-950/60', 'text-brand-600', 'dark:text-brand-300', 'border', 'border-brand-200', 'dark:border-brand-800', 'font-semibold', 'shadow-2xs');
+        btn.classList.add('text-gray-600', 'dark:text-slate-300', 'font-medium');
+    });
+
+    const activeBtn = document.getElementById('nav-' + tabId);
+    if (activeBtn) {
+        activeBtn.classList.remove('text-gray-600', 'dark:text-slate-300', 'font-medium');
+        activeBtn.classList.add('bg-indigo-50', 'dark:bg-indigo-950/60', 'text-brand-600', 'dark:text-brand-300', 'border', 'border-brand-200', 'dark:border-brand-800', 'font-semibold', 'shadow-2xs');
+    }
+
+    setTimeout(() => {
+        if (tabId === 'tab-overview') { buildColumnChart(); buildLineChart(); }
+        if (tabId === 'tab-teachers') { buildDoughnutChart(); buildHBarChart(); renderTeacherTable(); }
+        if (tabId === 'tab-hours') { buildHoursCharts(); }
+    }, 40);
+}
+
+// ========= FILTERS & VIEW MODE =========
+function setViewMode(mode) {
+    currentViewMode = mode;
+    const btnYearly = document.getElementById('btnViewYearly');
+    const btnTerm = document.getElementById('btnViewTerm');
+
+    if (mode === 'yearly') {
+        btnYearly.className = 'px-3 py-1 rounded-lg font-semibold bg-white dark:bg-slate-900 text-brand-600 dark:text-brand-300 shadow-sm transition-all';
+        btnTerm.className = 'px-3 py-1 rounded-lg font-medium text-gray-600 dark:text-slate-300 transition-all';
+    } else {
+        btnTerm.className = 'px-3 py-1 rounded-lg font-semibold bg-white dark:bg-slate-900 text-brand-600 dark:text-brand-300 shadow-sm transition-all';
+        btnYearly.className = 'px-3 py-1 rounded-lg font-medium text-gray-600 dark:text-slate-300 transition-all';
+    }
+    applyFilters();
+}
+
+function getSelectedYears() {
+    const from = parseInt(document.getElementById('selYearFrom').value);
+    const to = parseInt(document.getElementById('selYearTo').value);
+    const min = Math.min(from, to);
+    const max = Math.max(from, to);
+    const years = [];
+    for (let y = min; y <= max; y++) years.push(y);
+    return years;
+}
+
+function applyFilters() {
+    const years = getSelectedYears();
+    const prog = document.getElementById('selProgram').value;
+    const term = document.getElementById('selTerm').value;
+    const toYear = years[years.length - 1];
+
+    // 1) Update Filter Status Summary
+    const progLabel = prog === 'all' ? 'ทุกหลักสูตร' : `หลักสูตร ${prog}`;
+    const termLabel = term === 'all' ? (currentViewMode === 'yearly' ? 'ภาพรวมรายปี' : 'เฉลี่ยทั้งปี') : `ภาคการศึกษาที่ ${term}`;
+    document.getElementById('filterSummaryText').textContent =
+        `แสดงข้อมูล ${years[0]} - ${toYear} • ${progLabel} • ${termLabel} • เกณฑ์เป้าหมาย ${currentMinFTET.toFixed(2)} - ${currentMaxFTET.toFixed(2)} FTET (เฉลี่ย CoC ~0.45 FTET)`;
+
+    // 2) Update Dynamic KPIs based on filters
+    let latestFTET;
+    if (prog === 'all') {
+        latestFTET = term === 'all' ? RAW_AVG.CoC[toYear] : (RAW_TERM.CoC?.[toYear + '/' + term] || RAW_AVG.CoC[toYear]);
+        document.getElementById('kpiAvgTitle').textContent = 'FTET เฉลี่ยทั้งคณะ CoC';
+        document.getElementById('kpiTeachersTitle').textContent = 'อาจารย์ผู้สอนทั้งคณะ';
+        document.getElementById('kpiTeachers').textContent = '36';
+    } else {
+        latestFTET = term === 'all' ? (RAW_AVG[prog]?.[toYear] || 0) : (RAW_TERM[prog]?.[toYear + '/' + term] || RAW_AVG[prog]?.[toYear] || 0);
+        document.getElementById('kpiAvgTitle').textContent = `FTET เฉลี่ยหลักสูตร ${prog}`;
+        document.getElementById('kpiTeachersTitle').textContent = `อาจารย์หลักสูตร ${prog}`;
+        document.getElementById('kpiTeachers').textContent = TEACHER_COUNTS[prog] ?? '0';
+    }
+    document.getElementById('kpiAvg').textContent = (latestFTET || 0).toFixed(3);
+    document.getElementById('kpiAvgBadge').textContent = `ปี ${toYear} ${term !== 'all' ? 'เทอม ' + term : ''}`;
+
+    // Top program in latest year
+    const activeProgs = ['Comp','DE','DBiz','AISE','MsComp'];
+    let bestP = 'Comp', bestVal = 0;
+    activeProgs.forEach(p => {
+        const v = RAW_AVG[p]?.[toYear] || 0;
+        if (v > bestVal) { bestVal = v; bestP = p; }
+    });
+    document.getElementById('kpiTopProg').textContent = bestP;
+    document.getElementById('kpiTopProgBadge').textContent = `${bestVal.toFixed(3)} FTET (ปี ${toYear})`;
+
+    // 3) Re-render charts
+    buildColumnChart();
+    buildLineChart();
+    renderTeacherTable();
+}
+
+// ========= CHARTS HELPERS =========
+function gridColor() { return isDark() ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'; }
+function tickColor() { return isDark() ? '#94A3B8' : '#64748B'; }
+function legendColor() { return isDark() ? '#CBD5E1' : '#475569'; }
+
+function chartDefaults() {
+    return {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 10, padding: 14, font: { size: 11 }, color: legendColor() } },
+            tooltip: {
+                backgroundColor: isDark() ? '#0F172A' : '#FFFFFF',
+                titleColor: isDark() ? '#F8FAFC' : '#0F172A',
+                bodyColor: isDark() ? '#CBD5E1' : '#334155',
+                borderColor: isDark() ? '#334155' : '#E2E8F0',
+                borderWidth: 1, cornerRadius: 10, padding: 10,
+                titleFont: { weight: '600' }, bodyFont: { size: 12 }
+            }
+        },
+        scales: {
+            x: { grid: { color: gridColor(), drawBorder: false }, ticks: { color: tickColor(), font: { size: 11 } } },
+            y: { grid: { color: gridColor(), drawBorder: false }, ticks: { color: tickColor(), font: { size: 11 } }, beginAtZero: true }
+        }
+    };
+}
+
+// ========= BUILD CHARTS (ACCURATE REAL DATA) =========
+function buildColumnChart() {
+    const years = getSelectedYears();
+    const selProg = document.getElementById('selProgram').value;
+    const selTerm = document.getElementById('selTerm').value;
+    const allProgs = ['Comp','DE','DBiz','AISE','MsComp','CoC'];
+    const progs = selProg === 'all' ? allProgs : (allProgs.includes(selProg) ? [selProg, 'CoC'] : allProgs);
+
+    // Dynamic data extraction: yearly average vs specific term
+    const datasets = progs.map(p => {
+        const data = years.map(y => {
+            if (selTerm === 'all') {
+                return (RAW_AVG[p] && RAW_AVG[p][y]) ?? null;
+            } else {
+                const key = y + '/' + selTerm;
+                return (RAW_TERM[p] && RAW_TERM[p][key]) ?? null;
+            }
+        });
+        return {
+            label: p === 'CoC' ? 'CoC (เฉลี่ยทั้งคณะ)' : p,
+            backgroundColor: p === 'CoC' ? (isDark() ? '#475569CC' : '#94A3B8CC') : PROG_COLORS[p] + 'CC',
+            borderColor: PROG_COLORS[p],
+            borderWidth: 1, borderRadius: 6, borderSkipped: false,
+            data
+        };
+    });
+
+    const ctx = document.getElementById('chartColumn');
+    if (!ctx) return;
+    if (chartColumn) chartColumn.destroy();
+    const opts = chartDefaults();
+    opts.scales.y.max = 0.7;
+    chartColumn = new Chart(ctx.getContext('2d'), { type: 'bar', data: { labels: years, datasets }, options: opts });
+}
+
+function buildLineChart() {
+    const years = getSelectedYears();
+    const selProg = document.getElementById('selProgram').value;
+    const selTerm = document.getElementById('selTerm').value;
+
+    const allLabels = [];
+    years.forEach(y => {
+        if (selTerm === 'all') {
+            allLabels.push(y+'/1', y+'/2');
+        } else {
+            allLabels.push(y+'/'+selTerm);
+        }
+    });
+
+    const allProgs = ['Comp','DE','DBiz','AISE','MsComp','CoC'];
+    const progs = selProg === 'all' ? allProgs : (allProgs.includes(selProg) ? [selProg, 'CoC'] : allProgs);
+
+    const datasets = progs.map(p => ({
+        label: p === 'CoC' ? 'CoC (เฉลี่ยทั้งคณะ)' : p,
+        borderColor: PROG_COLORS[p],
+        backgroundColor: PROG_COLORS[p] + '14',
+        borderWidth: p === 'CoC' ? 2.5 : 2.0,
+        pointRadius: 3.5, pointBackgroundColor: isDark() ? '#0f172a' : '#fff',
+        pointBorderWidth: 2, pointBorderColor: PROG_COLORS[p],
+        tension: 0.35, fill: p === 'CoC' && selProg !== 'all',
+        data: allLabels.map(l => (RAW_TERM[p] && RAW_TERM[p][l]) ?? null),
+        borderDash: p === 'CoC' ? [6, 3] : []
+    }));
+
+    const ctx = document.getElementById('chartLine');
+    if (!ctx) return;
+    if (chartLine) chartLine.destroy();
+    const opts = chartDefaults();
+    opts.scales.y.max = 0.65;
+    opts.scales.x.ticks.maxRotation = 45;
+    chartLine = new Chart(ctx.getContext('2d'), { type: 'line', data: { labels: allLabels, datasets }, options: opts });
+}
+
+function buildDoughnutChart() {
+    const progs = ['Comp','DE','DBiz'];
+    const colors = progs.map(p => PROG_COLORS[p]);
+    const data = progs.map(p => TEACHER_COUNTS[p]);
+    const total = data.reduce((a, b) => a + b, 0);
+    const ctx = document.getElementById('chartDoughnut');
+    if (!ctx) return;
+    if (chartDoughnut) chartDoughnut.destroy();
+    chartDoughnut = new Chart(ctx.getContext('2d'), {
+        type: 'doughnut',
+        data: { labels: progs, datasets: [{ data, backgroundColor: colors, borderWidth: 0, hoverOffset: 8 }] },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            cutout: '62%',
+            plugins: {
+                legend: { position: 'bottom', labels: { boxWidth: 10, padding: 16, font: { size: 12 }, color: legendColor() } },
+                tooltip: {
+                    backgroundColor: isDark() ? '#0F172A' : '#FFF', titleColor: isDark() ? '#F8FAFC' : '#111',
+                    bodyColor: isDark() ? '#CBD5E1' : '#4B5563', borderColor: isDark() ? '#334155' : '#E5E7EB',
+                    borderWidth: 1, cornerRadius: 10, padding: 10,
+                    callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed} คน (${total ? (ctx.parsed / total * 100).toFixed(0) : 0}%)` }
+                }
+            }
+        }
+    });
+}
+
+function buildHBarChart() {
+    const selProg = document.getElementById('selProgram').value;
+    let list = TEACHERS;
+    if (selProg !== 'all') {
+        list = TEACHERS.filter(t => t.prog === selProg);
+    }
+    const top = list.slice(0, 12);
+    const labels = top.map(t => t.name.length > 20 ? t.name.slice(0, 20) + '…' : t.name);
+    const data = top.map(t => t.ftet);
+    const colors = top.map(t => PROG_COLORS[t.prog] || '#64748B');
+    const ctx = document.getElementById('chartHBar');
+    if (!ctx) return;
+    if (chartHBar) chartHBar.destroy();
+    const opts = chartDefaults();
+    opts.indexAxis = 'y';
+    opts.scales.x.max = 1.1;
+    opts.scales.y.ticks.font = { size: 10 };
+    opts.plugins.legend.display = false;
+    chartHBar = new Chart(ctx.getContext('2d'), {
+        type: 'bar',
+        data: { labels, datasets: [{ data, backgroundColor: colors.map(c => c + 'CC'), borderColor: colors, borderWidth: 1, borderRadius: 5, borderSkipped: false }] },
+        options: opts
+    });
+}
+
+function buildHoursCharts() {
+    const ctx1 = document.getElementById('chartHoursBreakdown');
+    if (ctx1) {
+        if (chartHoursBreakdown) chartHoursBreakdown.destroy();
+        const opts = chartDefaults();
+        opts.scales.x.stacked = true;
+        opts.scales.y.stacked = true;
+        chartHoursBreakdown = new Chart(ctx1.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: HOURS_DATA.terms,
+                datasets: [
+                    { label: 'บรรยาย (Lecture)', data: HOURS_DATA.lecture, backgroundColor: '#6366F1CC', borderRadius: 4 },
+                    { label: 'ปฏิบัติการ (Lab)', data: HOURS_DATA.lab, backgroundColor: '#10B981CC', borderRadius: 4 },
+                    { label: 'โครงงาน (Project)', data: HOURS_DATA.project, backgroundColor: '#F59E0BCC', borderRadius: 4 }
+                ]
+            },
+            options: opts
+        });
+    }
+
+    const ctx2 = document.getElementById('chartHoursPie');
+    if (ctx2) {
+        if (chartHoursPie) chartHoursPie.destroy();
+        chartHoursPie = new Chart(ctx2.getContext('2d'), {
+            type: 'pie',
+            data: {
+                labels: ['บรรยาย (175 ชม.)', 'ปฏิบัติการ (87 ชม.)', 'โครงงาน (76 ชม.)'],
+                datasets: [{
+                    data: [175, 87, 76],
+                    backgroundColor: ['#6366F1', '#10B981', '#F59E0B'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { boxWidth: 10, padding: 14, font: { size: 11 }, color: legendColor() } }
+                }
+            }
+        });
+    }
+}
+
+function updateAllChartsTheme() {
+    buildColumnChart();
+    buildLineChart();
+    buildDoughnutChart();
+    buildHBarChart();
+    buildHoursCharts();
+}
+
+function handleRefresh() {
+    const icon = document.getElementById('refreshIcon');
+    icon.classList.add('animate-spin');
+    setTimeout(() => icon.classList.remove('animate-spin'), 600);
+    applyFilters();
+}
+
+// ========= CALCULATOR (TWO-WAY BINDING & ADAPTIVE LIMIT) =========
+const DEFAULT_MAX = { Lec: 15, Lab: 15, Prj: 30, Sec: 10, Wk: 20 };
+
+function syncFromSlider(field) {
+    const slider = document.getElementById('slider' + field);
+    const num = document.getElementById('num' + field);
+    if (!slider || !num) return;
+    num.value = parseFloat(slider.value).toFixed(field === 'Sec' || field === 'Wk' ? 0 : 1);
+    calcFTET();
+}
+
+function syncFromNumber(field) {
+    const num = document.getElementById('num' + field);
+    const slider = document.getElementById('slider' + field);
+    const maxLabel = document.getElementById('maxLabel' + field);
+    if (!num || !slider) return;
+
+    let val = parseFloat(num.value);
+    if (isNaN(val) || val < 0) val = 0;
+
+    const defaultMax = DEFAULT_MAX[field];
+    if (val > defaultMax) {
+        slider.max = Math.ceil(val);
+        slider.value = val;
+        if (maxLabel) maxLabel.textContent = Math.ceil(val);
+    } else {
+        slider.max = defaultMax;
+        slider.value = val;
+        if (maxLabel) maxLabel.textContent = defaultMax;
+    }
+
+    calcFTET();
+}
+
+function setCalcPreset(lec, lab, prj, sec, wk) {
+    const fields = [
+        { key: 'Lec', val: lec },
+        { key: 'Lab', val: lab },
+        { key: 'Prj', val: prj },
+        { key: 'Sec', val: sec },
+        { key: 'Wk', val: wk }
+    ];
+    fields.forEach(f => {
+        const num = document.getElementById('num' + f.key);
+        if (num) {
+            num.value = f.val;
+            syncFromNumber(f.key);
+        }
+    });
+}
+
+function calcFTET() {
+    const numLec = document.getElementById('numLec');
+    const numLab = document.getElementById('numLab');
+    const numPrj = document.getElementById('numPrj');
+    const numSec = document.getElementById('numSec');
+    const numWk  = document.getElementById('numWk');
+    if (!numLec || !numLab || !numPrj || !numSec || !numWk) return;
+
+    const lec = Math.max(0, parseFloat(numLec.value) || 0);
+    const lab = Math.max(0, parseFloat(numLab.value) || 0);
+    const prj = Math.max(0, parseFloat(numPrj.value) || 0);
+    const sec = Math.max(1, parseInt(numSec.value) || 1);
+    const wk  = Math.max(1, parseInt(numWk.value) || 1);
+
+    const hoursPerWeek = (lec * 2) + (lab * 1.5) + prj;
+    const totalTeachingHours = hoursPerWeek * sec * wk;
+    const divisor = currentStandardHours || 525;
+    const ftet = totalTeachingHours / divisor;
+
+    document.getElementById('calcResult').textContent = ftet.toFixed(4);
+    document.getElementById('calcHours').textContent = `= ${totalTeachingHours.toFixed(1)} ชม./ภาค (เฉลี่ย ${(totalTeachingHours / wk).toFixed(1)} ชม./สัปดาห์)`;
+
+    // Dynamic scale limit
+    let scaleMax = 1.5;
+    if (ftet > 1.5) {
+        scaleMax = Math.max(2.0, Math.ceil(ftet * 1.15 * 10) / 10);
+    }
+    const maxLabelEl = document.getElementById('gaugeMaxLabel');
+    if (maxLabelEl) maxLabelEl.textContent = `สเกลสูงสุด ${scaleMax.toFixed(1)} FTET`;
+
+    const pct = Math.min(100, Math.max(2, (ftet / scaleMax) * 100));
+    const bar = document.getElementById('calcBar');
+    bar.style.width = pct + '%';
+
+    let color, status;
+    const warningEl = document.getElementById('calcWarning');
+
+    if (ftet < 0.4) {
+        color = '#6366F1';
+        status = 'ภาระงานเบา';
+        warningEl.classList.add('hidden');
+    } else if (ftet <= 1.0) {
+        color = '#10B981';
+        status = 'มาตรฐานเต็มเวลา';
+        warningEl.classList.add('hidden');
+    } else if (ftet <= 1.5) {
+        color = '#F59E0B';
+        status = 'ภาระงานสูง (Overload)';
+        warningEl.className = 'mt-4 w-full text-[0.72rem] p-3 rounded-xl text-left border bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300';
+        warningEl.innerHTML = `<strong>⚡ ภาระงานสูงกว่าเกณฑ์มาตรฐาน 1.0 FTET:</strong> เข้าเกณฑ์การพิจารณาเบิกจ่ายค่าตอบแทนการสอนเกินภาระงานตามระเบียบมหาวิทยาลัย`;
+        warningEl.classList.remove('hidden');
+    } else {
+        color = '#EF4444';
+        status = '⚠️ เกินเกณฑ์วิกฤต (> 1.5 FTET)';
+        warningEl.className = 'mt-4 w-full text-[0.72rem] p-3 rounded-xl text-left border bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300';
+        warningEl.innerHTML = `<strong>🚨 คำเตือนด้านคุณภาพ (QA Overload Alert):</strong> ภาระงานสอนอยู่ที่ ${ftet.toFixed(2)} FTET ซึ่งสูงเกินเกณฑ์ความปลอดภัยด้านคุณภาพการสอน (> 1.5 FTET) อาจส่งผลต่อประสิทธิภาพการสอนและการทำวิจัย แนะนำให้แบ่งกลุ่มเรียนและเพิ่มอาจารย์ผู้สอนร่วม`;
+        warningEl.classList.remove('hidden');
+    }
+
+    bar.style.background = color;
+    const statusEl = document.getElementById('calcStatus');
+    statusEl.textContent = status;
+    statusEl.style.color = color;
+}
+
+// ========= TEACHER TABLE =========
+function renderTeacherTable() {
+    const tbody = document.getElementById('teacherTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    const filterProg = document.getElementById('selProgram').value;
+    const search = (document.getElementById('teacherSearch')?.value || '').toLowerCase().trim();
+
+    let list = TEACHERS.filter(t => {
+        if (filterProg !== 'all' && t.prog !== filterProg) return false;
+        if (search && !t.name.toLowerCase().includes(search)) return false;
+        return true;
+    });
+
+    const subEl = document.getElementById('teacherTableSubtitle');
+    if (subEl) {
+        subEl.textContent = `แสดง FTET และจำนวนวิชาของอาจารย์ (${list.length} ท่าน${filterProg !== 'all' ? ' ในหลักสูตร ' + filterProg : ''})`;
+    }
+
+    if (list.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="px-5 py-8 text-center text-xs text-gray-400 dark:text-slate-500">ไม่พบข้อมูลอาจารย์ตามเงื่อนไขที่เลือก</td></tr>`;
+        return;
+    }
+
+    list.forEach((t, i) => {
+        let barColor, level;
+        if (t.ftet < 0.4) { barColor = '#6366F1'; level = 'เบา'; }
+        else if (t.ftet <= 0.6) { barColor = '#10B981'; level = 'ปกติ'; }
+        else if (t.ftet <= 1.0) { barColor = '#F59E0B'; level = 'สูง'; }
+        else { barColor = '#EF4444'; level = 'เกินเกณฑ์'; }
+        const pct = Math.min(t.ftet / 1.0 * 100, 100);
+
+        const progBg = isDark() ? 'rgba(255,255,255,0.08)' : (PROG_COLORS[t.prog] || '#64748B') + '14';
+        const progColor = PROG_COLORS[t.prog] || '#64748B';
+
+        tbody.innerHTML += `
+        <tr class="hover:bg-gray-50 dark:hover:bg-slate-800/60 transition-colors">
+            <td class="px-5 py-3 text-xs text-gray-400 dark:text-slate-500">${i+1}</td>
+            <td class="px-5 py-3 text-sm font-medium text-gray-900 dark:text-slate-100 whitespace-nowrap">${t.name}</td>
+            <td class="px-5 py-3"><span class="text-[0.7rem] font-semibold px-2 py-0.5 rounded-full" style="background:${progBg};color:${progColor}">${t.prog}</span></td>
+            <td class="px-5 py-3 text-sm text-right text-gray-600 dark:text-slate-400">${t.courses}</td>
+            <td class="px-5 py-3 text-sm text-right font-bold text-gray-900 dark:text-white tabular-nums">${t.ftet.toFixed(3)}</td>
+            <td class="px-5 py-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-20 h-1.5 rounded-full bg-gray-200 dark:bg-slate-700 overflow-hidden">
+                        <div class="h-full rounded-full" style="width:${pct}%;background:${barColor}"></div>
+                    </div>
+                    <span class="text-[0.65rem] font-medium" style="color:${barColor}">${level}</span>
+                </div>
+            </td>
+        </tr>`;
+    });
+}
+
+// ========= SETTINGS & PERSISTENCE =========
+function loadStoredSettings() {
+    try {
+        const stored = localStorage.getItem('ftet_settings');
+        if (stored) {
+            const cfg = JSON.parse(stored);
+            if (cfg.standardHours) currentStandardHours = cfg.standardHours;
+            if (cfg.minFTET) currentMinFTET = cfg.minFTET;
+            if (cfg.maxFTET) currentMaxFTET = cfg.maxFTET;
+        }
+    } catch(e) {}
+
+    document.getElementById('settingStandardHours').value = currentStandardHours;
+    document.getElementById('settingMinFTET').value = currentMinFTET;
+    document.getElementById('settingMaxFTET').value = currentMaxFTET;
+    document.getElementById('kpiStdHours').textContent = currentStandardHours;
+    document.getElementById('formulaDivisor').textContent = currentStandardHours;
+}
+
+function openSettingsModal() { document.getElementById('settingsModal').classList.remove('hidden'); }
+function closeSettingsModal() { document.getElementById('settingsModal').classList.add('hidden'); }
+
+function saveSettings() {
+    const hours = parseInt(document.getElementById('settingStandardHours').value) || 525;
+    const minF = parseFloat(document.getElementById('settingMinFTET').value) || 0.35;
+    const maxF = parseFloat(document.getElementById('settingMaxFTET').value) || 0.55;
+
+    currentStandardHours = hours;
+    currentMinFTET = minF;
+    currentMaxFTET = maxF;
+
+    localStorage.setItem('ftet_settings', JSON.stringify({
+        standardHours: hours, minFTET: minF, maxFTET: maxF
+    }));
+
+    document.getElementById('kpiStdHours').textContent = hours;
+    document.getElementById('formulaDivisor').textContent = hours;
+    closeSettingsModal();
+    applyFilters();
+    calcFTET();
+}
+
+// ========= EXPORT REPORT ENGINE (PDF, WORD, CSV) =========
+function openExportModal() {
+    document.getElementById('exportModal').classList.remove('hidden');
+}
+
+function closeExportModal() {
+    document.getElementById('exportModal').classList.add('hidden');
+}
+
+function getFilteredTeacherList() {
+    const filterProg = document.getElementById('selProgram').value;
+    const search = (document.getElementById('teacherSearch')?.value || '').toLowerCase().trim();
+    return TEACHERS.filter(t => {
+        if (filterProg !== 'all' && t.prog !== filterProg) return false;
+        if (search && !t.name.toLowerCase().includes(search)) return false;
+        return true;
+    });
+}
+
+function printReport() {
+    closeExportModal();
+    window.print();
+}
+
+function generateReportHTML() {
+    const years = getSelectedYears();
+    const selProg = document.getElementById('selProgram').value;
+    const selTerm = document.getElementById('selTerm').value;
+    const progLabel = selProg === 'all' ? 'ทุกหลักสูตรของวิทยาลัย' : `หลักสูตร ${selProg} (${PROG_NAMES[selProg] || ''})`;
+    const termLabel = selTerm === 'all' ? 'เฉลี่ยทั้งปีการศึกษา' : `ภาคการศึกษาที่ ${selTerm}`;
+    const dateStr = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+    const list = getFilteredTeacherList();
+
+    const avgVal = document.getElementById('kpiAvg').textContent;
+    const topProgVal = document.getElementById('kpiTopProg').textContent;
+    const stdHours = currentStandardHours || 525;
+
+    let rowsHtml = '';
+    list.forEach((t, i) => {
+        let level = t.ftet < 0.4 ? 'เบา' : (t.ftet <= 0.6 ? 'ปกติ' : (t.ftet <= 1.0 ? 'สูง' : 'เกินเกณฑ์'));
+        let hours = (t.ftet * stdHours).toFixed(1);
+        let badgeBg = t.ftet < 0.4 ? '#EEF2FF' : (t.ftet <= 0.6 ? '#ECFDF5' : (t.ftet <= 1.0 ? '#FFFBEB' : '#FEF2F2'));
+        let badgeColor = t.ftet < 0.4 ? '#4338CA' : (t.ftet <= 0.6 ? '#047857' : (t.ftet <= 1.0 ? '#B45309' : '#B91C1C'));
+        
+        rowsHtml += `
+        <tr style="border-bottom: 1px solid #E2E8F0;">
+            <td style="padding: 6px 8px; text-align: center; font-size: 11px; color: #64748B;">${i+1}</td>
+            <td style="padding: 6px 8px; font-size: 12px; font-weight: 600; color: #0F172A;">${t.name}</td>
+            <td style="padding: 6px 8px; text-align: center; font-size: 11px; font-weight: 600; color: #4F46E5;">${t.prog}</td>
+            <td style="padding: 6px 8px; text-align: right; font-size: 11px; color: #475569;">${t.courses}</td>
+            <td style="padding: 6px 8px; text-align: right; font-size: 12px; font-weight: bold; color: #0F172A;">${t.ftet.toFixed(3)}</td>
+            <td style="padding: 6px 8px; text-align: right; font-size: 11px; color: #475569;">${hours}</td>
+            <td style="padding: 6px 8px; text-align: center;">
+                <span style="display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: ${badgeBg}; color: ${badgeColor};">
+                    ${level}
+                </span>
+            </td>
+        </tr>`;
+    });
+
+    return `
+    <div id="pdfExportWrapper" style="width: 780px; padding: 24px; background: #ffffff; color: #0F172A; font-family: 'IBM Plex Sans Thai', 'Inter', system-ui, sans-serif; box-sizing: border-box;">
+        <!-- Header -->
+        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #4F46E5; padding-bottom: 12px; margin-bottom: 14px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <img src="assets/psu_logo_light.png" style="height: 38px; width: auto; object-fit: contain;">
+                <div>
+                    <div style="font-size: 16px; font-weight: 800; color: #0F172A; line-height: 1.2;">CoC QA Dashboard — FTET Analytics</div>
+                    <div style="font-size: 11px; color: #64748B; margin-top: 2px;">วิทยาลัยการคอมพิวเตอร์ มหาวิทยาลัยสงขลานครินทร์ (College of Computing, PSU)</div>
+                </div>
+            </div>
+            <div style="text-align: right; font-size: 10px; color: #64748B; line-height: 1.5;">
+                <div><strong>ออกรายงานเมื่อ:</strong> ${dateStr}</div>
+                <div><strong>ปีการศึกษา:</strong> พ.ศ. ${years[0]} - ${years[years.length-1]}</div>
+            </div>
+        </div>
+
+        <!-- Meta Banner -->
+        <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-size: 11px; color: #334155; display: flex; justify-content: space-between;">
+            <div><strong>ขอบเขตหลักสูตร:</strong> ${progLabel} &bull; <strong>ภาคเรียน:</strong> ${termLabel}</div>
+            <div><strong>เกณฑ์มาตรฐาน 1.0 FTET:</strong> ${stdHours} ชม./ภาค</div>
+        </div>
+
+        <!-- KPI Grid -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px;">
+            <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px; text-align: center;">
+                <div style="font-size: 9px; font-weight: 700; text-transform: uppercase; color: #64748B;">FTET เฉลี่ย</div>
+                <div style="font-size: 20px; font-weight: 800; color: #4F46E5; margin-top: 2px;">${avgVal}</div>
+                <div style="font-size: 9px; color: #64748B; margin-top: 2px;">ปี ${years[years.length-1]}</div>
+            </div>
+            <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px; text-align: center;">
+                <div style="font-size: 9px; font-weight: 700; text-transform: uppercase; color: #64748B;">อาจารย์ผู้สอน</div>
+                <div style="font-size: 20px; font-weight: 800; color: #10B981; margin-top: 2px;">${list.length} คน</div>
+                <div style="font-size: 9px; color: #64748B; margin-top: 2px;">ภาค 2567/2</div>
+            </div>
+            <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px; text-align: center;">
+                <div style="font-size: 9px; font-weight: 700; text-transform: uppercase; color: #64748B;">หลักสูตรสูงสุด</div>
+                <div style="font-size: 20px; font-weight: 800; color: #F59E0B; margin-top: 2px;">${topProgVal}</div>
+                <div style="font-size: 9px; color: #64748B; margin-top: 2px;">ในรอบปี</div>
+            </div>
+            <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px; text-align: center;">
+                <div style="font-size: 9px; font-weight: 700; text-transform: uppercase; color: #64748B;">เกณฑ์ 1.0 FTET</div>
+                <div style="font-size: 20px; font-weight: 800; color: #7C3AED; margin-top: 2px;">${stdHours}</div>
+                <div style="font-size: 9px; color: #64748B; margin-top: 2px;">ชม./ภาค</div>
+            </div>
+        </div>
+
+        <!-- Table Title -->
+        <div style="font-size: 13px; font-weight: 700; color: #0F172A; margin-bottom: 8px;">
+            รายละเอียดภาระงานอาจารย์รายบุคคล (ภาคการศึกษา 2567/2)
+        </div>
+        
+        <!-- Table -->
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+            <thead>
+                <tr style="background: #F1F5F9; border-top: 1px solid #CBD5E1; border-bottom: 1px solid #CBD5E1; font-size: 10px; font-weight: 700; text-transform: uppercase; color: #475569;">
+                    <th style="padding: 6px 8px; text-align: center; width: 35px;">#</th>
+                    <th style="padding: 6px 8px; text-align: left;">ชื่อ - สกุล อาจารย์</th>
+                    <th style="padding: 6px 8px; text-align: center; width: 65px;">หลักสูตร</th>
+                    <th style="padding: 6px 8px; text-align: right; width: 55px;">วิชา</th>
+                    <th style="padding: 6px 8px; text-align: right; width: 65px;">FTET</th>
+                    <th style="padding: 6px 8px; text-align: right; width: 80px;">ชม./ภาค</th>
+                    <th style="padding: 6px 8px; text-align: center; width: 85px;">ระดับภาระงาน</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${rowsHtml}
+            </tbody>
+        </table>
+
+        <!-- Signatures -->
+        <div style="display: flex; justify-content: space-between; margin-top: 24px; padding-top: 14px; border-top: 1px solid #E2E8F0; font-size: 11px; text-align: center; page-break-inside: avoid;">
+            <div style="width: 45%;">
+                <div style="height: 32px;"></div>
+                <div>....................................................................</div>
+                <div style="font-weight: 600; margin-top: 4px; color: #0F172A;">ผู้จัดทำรายงาน / ผู้ประสานงาน QA</div>
+                <div style="color: #64748B; font-size: 10px;">วิทยาลัยการคอมพิวเตอร์ ม.อ.</div>
+            </div>
+            <div style="width: 45%;">
+                <div style="height: 32px;"></div>
+                <div>....................................................................</div>
+                <div style="font-weight: 600; margin-top: 4px; color: #0F172A;">คณบดีวิทยาลัยการคอมพิวเตอร์</div>
+                <div style="color: #64748B; font-size: 10px;">มหาวิทยาลัยสงขลานครินทร์</div>
+            </div>
+        </div>
+    </div>`;
+}
+
+function exportPDF() {
+    const btnText = document.getElementById('btnPdfText');
+    const oldText = btnText ? btnText.textContent : 'ดาวน์โหลด PDF';
+    if (btnText) btnText.textContent = 'กำลังสร้างไฟล์ PDF...';
+
+    // Fallback if html2pdf is unavailable
+    if (typeof html2pdf === 'undefined') {
+        closeExportModal();
+        if (btnText) btnText.textContent = oldText;
+        window.print();
+        return;
+    }
+
+    const years = getSelectedYears();
+    const selProg = document.getElementById('selProgram').value;
+    const filename = `CoC_FTET_Report_${years[years.length-1]}_${selProg}.pdf`;
+
+    // Create offscreen container
+    const container = document.createElement('div');
+    container.style.position = 'fixed';
+    container.style.left = '-9999px';
+    container.style.top = '0';
+    container.style.zIndex = '-9999';
+    container.innerHTML = generateReportHTML();
+    document.body.appendChild(container);
+
+    const targetEl = container.firstElementChild;
+    const opt = {
+        margin: [8, 8, 8, 8],
+        filename: filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+    };
+
+    html2pdf().set(opt).from(targetEl).save().then(() => {
+        document.body.removeChild(container);
+        if (btnText) btnText.textContent = oldText;
+        closeExportModal();
+    }).catch(err => {
+        console.error('PDF export error:', err);
+        document.body.removeChild(container);
+        if (btnText) btnText.textContent = oldText;
+        closeExportModal();
+        window.print();
+    });
+}
+
+function exportWord() {
+    const years = getSelectedYears();
+    const selProg = document.getElementById('selProgram').value;
+    const selTerm = document.getElementById('selTerm').value;
+    const progLabel = selProg === 'all' ? 'ทุกหลักสูตรของวิทยาลัย' : `หลักสูตร ${selProg} (${PROG_NAMES[selProg] || ''})`;
+    const termLabel = selTerm === 'all' ? 'เฉลี่ยทั้งปีการศึกษา' : `ภาคการศึกษาที่ ${selTerm}`;
+    const dateStr = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+    const list = getFilteredTeacherList();
+
+    const avgVal = document.getElementById('kpiAvg').textContent;
+    const topProgVal = document.getElementById('kpiTopProg').textContent;
+
+    let rowsHtml = '';
+    list.forEach((t, i) => {
+        let level = t.ftet < 0.4 ? 'เบา' : (t.ftet <= 0.6 ? 'ปกติ' : (t.ftet <= 1.0 ? 'สูง' : 'เกินเกณฑ์'));
+        let hours = (t.ftet * (currentStandardHours || 525)).toFixed(1);
+        let color = t.ftet < 0.4 ? '#4338CA' : (t.ftet <= 0.6 ? '#047857' : (t.ftet <= 1.0 ? '#B45309' : '#B91C1C'));
+        rowsHtml += `
+        <tr>
+            <td style="text-align:center; padding: 6px 8px; border: 1px solid #D1D5DB;">${i+1}</td>
+            <td style="padding: 6px 8px; border: 1px solid #D1D5DB; font-weight: 500;">${t.name}</td>
+            <td style="text-align:center; padding: 6px 8px; border: 1px solid #D1D5DB;">${t.prog}</td>
+            <td style="text-align:right; padding: 6px 8px; border: 1px solid #D1D5DB;">${t.courses}</td>
+            <td style="text-align:right; font-weight:bold; padding: 6px 8px; border: 1px solid #D1D5DB; color:${color};">${t.ftet.toFixed(3)}</td>
+            <td style="text-align:right; padding: 6px 8px; border: 1px solid #D1D5DB;">${hours}</td>
+            <td style="text-align:center; font-weight:bold; padding: 6px 8px; border: 1px solid #D1D5DB; color:${color};">${level}</td>
+        </tr>`;
+    });
+
+    const docContent = `
+    <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+    <head>
+        <meta charset='utf-8'>
+        <title>รายงานวิเคราะห์ภาระงานอาจารย์ CoC FTET Report</title>
+        <style>
+            body { font-family: 'TH Sarabun New', 'Angsana New', 'IBM Plex Sans Thai', Tahoma, sans-serif; font-size: 14pt; line-height: 1.4; color: #1F2937; }
+            .header { text-align: center; margin-bottom: 24px; border-bottom: 3px double #1E3A8A; padding-bottom: 12px; }
+            .title { font-size: 19pt; font-weight: bold; color: #1E3A8A; }
+            .subtitle { font-size: 13pt; color: #4B5563; margin-top: 4px; }
+            .meta { margin-bottom: 16px; font-size: 12pt; background-color: #F8FAFC; border: 1px solid #E2E8F0; padding: 10px 14px; border-radius: 6px; }
+            table { border-collapse: collapse; width: 100%; margin-top: 12px; margin-bottom: 24px; }
+            th, td { font-size: 11pt; }
+            th { background-color: #EEF2FF; color: #312E81; padding: 8px; text-align: center; border: 1px solid #C7D2FE; font-weight: bold; }
+            .kpi-box { width: 100%; border: none; margin-bottom: 20px; }
+            .kpi-box td { border: 1px solid #E2E8F0; background-color: #F8FAFC; padding: 12px; text-align: center; }
+            .kpi-title { font-size: 10pt; color: #64748B; text-transform: uppercase; font-weight: 600; }
+            .kpi-val { font-size: 17pt; font-weight: bold; color: #4338CA; margin-top: 4px; }
+            .footer-sign { margin-top: 40px; width: 100%; border: none; }
+            .footer-sign td { border: none; text-align: center; font-size: 12pt; padding: 20px; }
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <div class="title">รายงานสรุปผลการวิเคราะห์ภาระงานอาจารย์ (FTET Analysis Report)</div>
+            <div class="subtitle">วิทยาลัยการคอมพิวเตอร์ มหาวิทยาลัยสงขลานครินทร์ (College of Computing, Prince of Songkla University)</div>
+        </div>
+
+        <div class="meta">
+            <strong>วันที่ออกรายงาน:</strong> ${dateStr} &nbsp;|&nbsp; 
+            <strong>ช่วงปีการศึกษา:</strong> พ.ศ. ${years[0]} - ${years[years.length-1]} &nbsp;|&nbsp; 
+            <strong>ภาคการศึกษา:</strong> ${termLabel} &nbsp;|&nbsp; 
+            <strong>หลักสูตร:</strong> ${progLabel}
+        </div>
+
+        <table class="kpi-box">
+            <tr>
+                <td>
+                    <div class="kpi-title">FTET เฉลี่ย</div>
+                    <div class="kpi-val">${avgVal}</div>
+                </td>
+                <td>
+                    <div class="kpi-title">อาจารย์ผู้สอน</div>
+                    <div class="kpi-val">${list.length} คน</div>
+                </td>
+                <td>
+                    <div class="kpi-title">หลักสูตรสูงสุด</div>
+                    <div class="kpi-val">${topProgVal}</div>
+                </td>
+                <td>
+                    <div class="kpi-title">เกณฑ์ 1.0 FTET</div>
+                    <div class="kpi-val">${currentStandardHours} ชม./ภาค</div>
+                </td>
+            </tr>
+        </table>
+
+        <div style="font-size: 13pt; font-weight: bold; margin-bottom: 6px; color: #1E3A8A;">ตารางรายละเอียดภาระงานอาจารย์รายบุคคล (ภาคการศึกษา 2567/2)</div>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 35px;">ลำดับ</th>
+                    <th>ชื่อ - สกุล อาจารย์</th>
+                    <th style="width: 70px;">หลักสูตร</th>
+                    <th style="width: 60px;">จำนวนวิชา</th>
+                    <th style="width: 70px;">ค่า FTET</th>
+                    <th style="width: 85px;">ชม.รวม/ภาค</th>
+                    <th style="width: 80px;">ระดับภาระงาน</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${rowsHtml}
+            </tbody>
+        </table>
+
+        <table class="footer-sign">
+            <tr>
+                <td style="width: 50%;">
+                    ................................................................<br>
+                    (................................................................)<br>
+                    ผู้จัดทำรายงาน / ผู้ประสานงาน QA
+                </td>
+                <td style="width: 50%;">
+                    ................................................................<br>
+                    (................................................................)<br>
+                    คณบดีวิทยาลัยการคอมพิวเตอร์
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>`;
+
+    const blob = new Blob(['\uFEFF' + docContent], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `CoC_FTET_Report_${years[years.length-1]}_${selProg}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    closeExportModal();
+}
+
+function exportCSV() {
+    const list = getFilteredTeacherList();
+    const years = getSelectedYears();
+    const selProg = document.getElementById('selProgram').value;
+    let csv = '\uFEFFอันดับ,ชื่ออาจารย์,หลักสูตร,จำนวนวิชา,ค่า FTET,ชั่วโมงสอนรวม (ชม./ภาค),ระดับภาระงาน\n';
+    list.forEach((t, i) => {
+        let level = t.ftet < 0.4 ? 'เบา' : (t.ftet <= 0.6 ? 'ปกติ' : (t.ftet <= 1.0 ? 'สูง' : 'เกินเกณฑ์'));
+        let hours = (t.ftet * (currentStandardHours || 525)).toFixed(1);
+        csv += `${i+1},"${t.name}",${t.prog},${t.courses},${t.ftet.toFixed(3)},${hours},${level}\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `CoC_FTET_Teachers_${years[years.length-1]}_${selProg}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    closeExportModal();
+}
+
+function copySummaryText() {
+    const years = getSelectedYears();
+    const selProg = document.getElementById('selProgram').value;
+    const avgVal = document.getElementById('kpiAvg').textContent;
+    const topProgVal = document.getElementById('kpiTopProg').textContent;
+    const list = getFilteredTeacherList();
+
+    const summary = `📊 รายงานสรุปภาระงานอาจารย์ CoC FTET Dashboard
+วิทยาลัยการคอมพิวเตอร์ มหาวิทยาลัยสงขลานครินทร์ (PSU)
+----------------------------------------
+📅 ขอบเขต: ปีการศึกษา ${years[0]} - ${years[years.length-1]}
+📚 หลักสูตร: ${selProg === 'all' ? 'ทุกหลักสูตร' : selProg}
+📈 FTET เฉลี่ย: ${avgVal} FTET
+👥 อาจารย์ผู้สอน: ${list.length} ท่าน
+🏆 หลักสูตรสูงสุด: ${topProgVal}
+⏱️ เกณฑ์ 1.0 FTET: ${currentStandardHours} ชม./ภาค
+----------------------------------------
+🔝 Top 3 ภาระงานสูงสุด:
+1. ${list[0]?.name || '-'} (${list[0]?.prog}) = ${list[0]?.ftet.toFixed(3)} FTET
+2. ${list[1]?.name || '-'} (${list[1]?.prog}) = ${list[1]?.ftet.toFixed(3)} FTET
+3. ${list[2]?.name || '-'} (${list[2]?.prog}) = ${list[2]?.ftet.toFixed(3)} FTET
+----------------------------------------
+รายงานจัดทำโดยระบบ CoC QA Dashboard`;
+
+    navigator.clipboard.writeText(summary).then(() => {
+        alert('คัดลอกข้อความสรุปเรียบร้อยแล้ว สามารถนำไปวางใน Line หรือ Email ได้ทันที');
+        closeExportModal();
+    }).catch(() => {
+        alert('กรุณาอนุญาตการเข้าถึง Clipboard หรือคัดลอกจากหน้าจอ');
+    });
+}
+
+// ========= INITIALIZATION =========
+applyStoredTheme();
+loadStoredSettings();
+applyFilters();
+calcFTET();
+renderTeacherTable();
+</script>
+</body>
+</html>
